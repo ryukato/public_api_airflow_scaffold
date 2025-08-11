@@ -62,6 +62,10 @@ class MongoCollectionAdapter:
         return self._upsert_with_cfg("dataset_a", docs, batch_size=batch_size)
 
      # ---------- processed-page helpers (bypass to ProcessedPageRepository) ----------
+    def list_processed_pages(self, api_name: str, run_date: str) -> Set[int]:
+        """Bypass to ProcessedPageRepository.list_pages(...)."""
+        return self._processed_repo().list_processed_pages(api_name, run_date)
+        
     def is_processed(self, api_name: str, run_date: str, page_no: int) -> bool:
         """Bypass to ProcessedPageRepository.is_processed(...)."""
         return self._processed_repo().is_processed(api_name, run_date, page_no)

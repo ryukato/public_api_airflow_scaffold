@@ -72,22 +72,16 @@ def public_api_pipeline():
         page_count = int(page_count)  # ensure SupportsIndex
         return list(range(1, page_count + 1))
 
-    @task
-    def filter_unprocessed(pages: list[int]) -> list[int]:
-        run_date_kst = get_run_date_kst_str()
-        # Query processed markers in one shot and build a set of done pages
-        unprocessed = []
-        with MongoCollectionAdapter(
-            mongo_conn_id=MONGO_CONN_ID, database=MONGO_DB
-        ) as adapter:
-            for p in pages:
-                # is_processed should return True if this page was already processed
-                if not adapter.is_processed(
-                    api_name=ENDPOINT, run_date=run_date_kst, page_no=p
-                ):
-                    unprocessed.append(p)
+    # @task
+    # def filter_unprocessed(pages: list[int]) -> list[int]:
+    #     run_date_kst = get_run_date_kst_str()
+    #     # Query processed markers in one shot and build a set of done pages
+    #     unprocessed = []
+    #     with MongoCollectionAdapter(mongo_conn_id=MONGO_CONN_ID, database=MONGO_DB) as adapter:
+    #         done: set[int] = adapter.processed_list_pages(ENDPOINT, run_date_kst)
 
-        return unprocessed
+    #     # Filter in O(n) time with O(1) membership checks
+    #     return [p for p in pages if p not in done]
 
     @task(
         retries=3,
@@ -99,15 +93,22 @@ def public_api_pipeline():
     )
     def process_page(page_no: int) -> bool:
         """Fetch -> parse -> upsert for one page; return True on any change."""
+        run_date_kst = get_run_date_kst_str()
+        client = PublicApiClient(base_url=API_BASE_URL, service_key=API_KEY)
+        adapter = MongoCollectionAdapter(mongo_conn_id=MONGO_CONN_ID, database=MONGO_DB)
         try:
-            with PublicApiClient(base_url=API_BASE_URL, service_key=API_KEY) as client:
-                payload = client.fetch_page(
-                    endpoint=ENDPOINT,
-                    page_no=page_no,
-                    num_of_rows=NUM_OF_ROWS,
-                    records_path=("body", "items"),
-                    total_count_path=("body", "totalCount"),
-                )
+             # skip if already processed
+            if adapter.is_processed(api_name=ENDPOINT, run_date=run_date_kst, page_no=page_no):
+                logger.info("Skip already processed page=%s runDate=%s", page_no, run_date_kst)
+                return 0
+
+            payload = client.fetch_page(
+                endpoint=ENDPOINT,
+                page_no=page_no,
+                num_of_rows=NUM_OF_ROWS,
+                records_path=("body", "items"),
+                total_count_path=("body", "totalCount"),
+            )
             raw_records = payload.get("records", [])
             logger.info(
                 "Fetched page=%s size=%s total=%s",
@@ -121,12 +122,9 @@ def public_api_pipeline():
                 logger.warning("No docs parsed for page=%s", page_no)
                 return True
 
-            with MongoCollectionAdapter(
-                mongo_conn_id=MONGO_CONN_ID, database=MONGO_DB
-            ) as adapter:
-                n = adapter.dataset_a_upsert_many(docs)  # generic dataset key
-                run_date_kst = get_run_date_kst_str()
-                adapter.mark_processed(ENDPOINT, run_date_kst, page_no)
+            n = adapter.dataset_a_upsert_many(docs)  # generic dataset key
+            run_date_kst = get_run_date_kst_str()
+            adapter.mark_processed(ENDPOINT, run_date_kst, page_no)
             logger.info("Upserted/Updated=%s page=%s", n, page_no)
             return n > 0
         except Exception as e:
@@ -141,13 +139,9 @@ def public_api_pipeline():
     end = EmptyOperator(task_id="end")
 
     pages = get_total_pages()
-    filtered_pages = filter_unprocessed(pages)
     processed = process_page.expand(page_no=pages)
 
     # Ensure `end` can run even when `processed` is all SKIPPED (filtered_pages empty)
-    start >> pages >> filtered_pages
-    [filtered_pages, processed] >> end
-
     start >> pages >> processed >> end
 
 

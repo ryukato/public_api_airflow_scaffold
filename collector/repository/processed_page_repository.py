@@ -38,3 +38,14 @@ class ProcessedPageRepository:
             {"apiName": api_name, "runDate": run_date, "pageNo": int(page_no)}
         )
         return int(res.deleted_count or 0)
+
+    def list_processed_pages(self, api_name: str, run_date: str) -> Set[int]:
+        """
+        Return a set of processed page numbers for (apiName, runDate).
+        - Single query with projection to minimize payload
+        """
+        cur = self.col.find(
+            {"apiName": api_name, "runDate": run_date},
+            projection={"pageNo": 1, "_id": 0},
+        )
+        return {int(doc["pageNo"]) for doc in cur if "pageNo" in doc}
