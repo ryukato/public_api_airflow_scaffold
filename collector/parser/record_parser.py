@@ -6,7 +6,9 @@ Parsing layer: convert raw JSON records to documents for persistence.
 from __future__ import annotations
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Callable, TypeVar
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+
+from collector.util.hash_util import HashUtil
 
 logger = logging.getLogger(__name__)
 Doc = Dict[str, Any]
@@ -20,6 +22,17 @@ class DummyItem(BaseModel):
     vendor: Optional[str] = Field(default=None, alias="ENTP_NAME")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    content_hash: Optional[str] = None  # 자동 생성 필드
+
+    @model_validator(mode="before")
+    def generate_item_key(cls, values):
+        all_values_hash_value = HashUtil.generate_hashed_item_key(
+            values=values,
+            exclude=["content_hash", "contentHash"]
+        )
+        values["content_hash"] = all_values_hash_value
+        return values
 
 def parse_records(
     records: Iterable[Dict[str, Any]],
