@@ -9,7 +9,7 @@ def test_adapter_calls_repo(monkeypatch):
             return 42
     adapter = adapter_mod.MongoCollectionAdapter.__new__(adapter_mod.MongoCollectionAdapter)
     adapter.MODEL_CFG = {"dataset_a": ("dataset_a_raw", ("id",))}
-    adapter._repo_for = lambda col: DummyRepo()
+    adapter._rw_repo = lambda col: DummyRepo()
     n = adapter.dataset_a_upsert_many([{"id": "A"}], batch_size=123)
     assert n == 42
     assert called["args"][0] == [{"id": "A"}]
