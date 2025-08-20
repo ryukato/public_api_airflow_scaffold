@@ -99,9 +99,9 @@ class MongoCollectionAdapter:
         """Bypass to ProcessedPageRepository.is_processed(...)."""
         return self._processed_repo().is_processed(api_name, run_date, page_no)
 
-    def mark_processed(self, api_name: str, run_date: str, page_no: int) -> None:
+    def mark_processed(self, api_name: str, run_date: str, page_no: int, processed_size: int) -> None:
         """Bypass to ProcessedPageRepository.mark_processed(...)."""
-        self._processed_repo().mark_processed(api_name, run_date, page_no)
+        self._processed_repo().mark_processed(api_name, run_date, page_no, processed_size)
 
     def unmark_processed(self, api_name: str, run_date: str, page_no: int) -> int:
         """Bypass to ProcessedPageRepository.unmark_processed(...)."""

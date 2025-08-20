@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pymongo.collection import Collection
 from pymongo import ASCENDING
 
+
 class ProcessedPageRepository:
     def __init__(self, collection: Collection) -> None:
         self.col = collection
@@ -14,20 +15,37 @@ class ProcessedPageRepository:
             background=True,
             name="uq_api_runDate_pageNo",
         )
-        self.col.create_index("processedAt", expireAfterSeconds=90*24*3600, background=True)
+        self.col.create_index(
+            "processedAt", expireAfterSeconds=90 * 24 * 3600, background=True
+        )
 
     def is_processed(self, api_name: str, run_date: str, page_no: int) -> bool:
         """Return True if already processed for (api_name, run_date, page_no)."""
-        return self.col.find_one(
-            {"apiName": api_name, "runDate": run_date, "pageNo": int(page_no)},
-            projection={"_id": 1},
-        ) is not None
+        return (
+            self.col.find_one(
+                {"apiName": api_name, "runDate": run_date, "pageNo": int(page_no)},
+                projection={"_id": 1},
+            )
+            is not None
+        )
 
-    def mark_processed(self, api_name: str, run_date: str, page_no: int, when: Optional[datetime] = None) -> None:
+    def mark_processed(
+        self,
+        api_name: str,
+        run_date: str,
+        page_no: int,
+        processed_size: int = 0,
+        when: Optional[datetime] = None,
+    ) -> None:
         """Upsert a processed marker document."""
         when = when or datetime.now(tz=timezone.utc)
         self.col.update_one(
-            {"apiName": api_name, "runDate": run_date, "pageNo": int(page_no)},
+            {
+                "apiName": api_name,
+                "runDate": run_date,
+                "pageNo": int(page_no),
+                "processedSize": int(processed_size)
+            },
             {"$set": {"processedAt": when}},
             upsert=True,
         )
