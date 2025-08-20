@@ -105,3 +105,29 @@ class MongoReadonlyRepository:
     def count_data(self, query_filter: Optional[dict] = None) -> int:
         query = query_filter or {}
         return self.col.count_documents(query)
+    
+    def build_page_anchors(
+            self,
+            needs_filter: dict[str, Any],
+            page_size: int,
+            batch_size: int,
+            max_time_ms: int
+    ) -> List[Any]:
+
+        anchors: List[str] = []
+        count = 0
+
+        cursor = (
+            self.col.find(needs_filter, {"_id": 1})
+            .sort([("_id", 1)])
+            .batch_size(batch_size)
+            .max_time_ms(max_time_ms)
+        )
+
+        for doc in cursor:
+            _id = str(doc["_id"])
+            if count % page_size == 0:
+                anchors.append(_id)  # 각 페이지의 시작 id
+            count += 1
+
+        return anchors

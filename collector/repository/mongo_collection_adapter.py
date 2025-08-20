@@ -6,9 +6,10 @@ and delegates persistence to MongoWriteRepository.
 import logging
 import os
 from __future__ import annotations
-from typing import Dict, Iterable, Mapping, Set, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 from airflow.providers.mongo.hooks.mongo import MongoHook
 
+from collector.repository.filter_provider import FilterProvider
 from collector.repository.processed_page_repository import ProcessedPageRepository
 from .mongo_write_repository import MongoWriteRepository
 from .mongo_readonly_repository import MongoReadonlyRepository 
@@ -106,3 +107,41 @@ class MongoCollectionAdapter:
     def unmark_processed(self, api_name: str, run_date: str, page_no: int) -> int:
         """Bypass to ProcessedPageRepository.unmark_processed(...)."""
         return self._processed_repo().unmark_processed(api_name, run_date, page_no)
+
+    # ---------- RAG Indexing helpers ----------
+    def heartbeat_lease(self, collection_name: str, doc_id: str, owner: str, lease_seconds: int = 300) -> bool:
+        return self._rw_repo(collection_name).heartbeat_lease(doc_id, owner, lease_seconds)
+    
+    def release_lease(self, collection_name: str, doc_id: str, owner: str) -> None:
+        self._rw_repo(collection_name).release_lease(doc_id, owner)
+
+    def release_stale_leases(self, collection_name: str) -> int:
+        return self._rw_repo(collection_name).release_stale_leases()
+
+    # ---------- Mark results ----------
+    def mark_indexed(self, collection_name: str, doc_id: str, content_hash: Optional[str],
+                     embedding_version: int) -> None:
+        self._rw_repo(collection_name).mark_indexed(doc_id, content_hash, embedding_version)
+
+    def mark_index_failed(self, collection_name: str, doc_id: str, owner: Optional[str] = None,
+                          reason: Optional[str] = None) -> None:
+        self._rw_repo(collection_name).mark_index_failed(doc_id, owner=owner, reason=reason)
+    
+    def build_page_anchors(self, model_key: str, embedding_version: int, page_size: int) -> List[Any]:
+        """
+        needs-index 필터로 전체를 _id 오름차순 단일 커서로 훑으며
+        page_size마다 '시작 _id(anchor)'를 한 번씩만 추출한다.
+        """
+        needs = FilterProvider.build_needs_index_filter(embedding_version, safe_hash=True)
+        collection_name = self.resolve_collection(model_key)
+
+        # 배치/타임아웃은 환경변수로 조절 가능하게(없으면 보수적 기본값)
+        batch_size = int(os.getenv("RAG_ANCHOR_BATCH", "10000"))
+        max_time_ms = int(os.getenv("RAG_ANCHOR_MAX_TIME_MS", "120000"))  # 120s
+
+        return self._ro_repo(collection_name).build_page_anchors(
+            needs_filter=needs,
+            page_size=page_size,
+            batch_size=batch_size,
+            max_time_ms=max_time_ms
+        )
