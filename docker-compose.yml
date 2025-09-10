@@ -59,8 +59,23 @@ services:
     entrypoint: ["/entrypoint.sh"]  # <== custom entrypoint 지정
     command: "airflow scheduler"
     depends_on: [airflow-webserver, mongo, postgres]
-  
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "26333:6333"   # REST API
+      - "26334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+  rag-embedding-server:
+    image: rag-embedding-server:latest
+    container_name: rag-embedding-server
+    ports:
+      - "28000:8000"
+    volumes:
+      - ./rag_embedding_server/.env-docker:/app/.env
 
 volumes:
   postgres_data:
   mongo_data:
+  qdrant_data:

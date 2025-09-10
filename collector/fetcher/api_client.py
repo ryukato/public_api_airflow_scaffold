@@ -49,7 +49,6 @@ class PublicApiClient:
         self.session.close()
 
     def __enter__(self):
-        # Enable usage: with RawDrugDataClient(...) as client:
         return self
 
     def __exit__(self, exc_type, exc, tb):

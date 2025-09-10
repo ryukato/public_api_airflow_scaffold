@@ -122,10 +122,10 @@ class MongoWriteRepository:
     # TODO separate failure of indexing
     '''
         "indexLease" and "indexLease.owner" have to be in a source(not to be separated) 
-        collection_name: raw_drug_indexing_failure
+        collection_name: raw_test_indexing_failure
         fields
-            - ref_doc_id: doc_id of source (e.g. raw_drug_summary)
-            - data_type: e.g. raw_drug_summary
+            - ref_doc_id: doc_id of source (e.g. raw_test_summary)
+            - data_type: e.g. raw_test_summary
             - lastIndexErrorAt
             - lastIndexError
     '''
