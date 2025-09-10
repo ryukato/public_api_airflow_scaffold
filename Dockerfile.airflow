@@ -1,0 +1,8 @@
+FROM apache/airflow:3.0.6
+
+# Install extra Python packages before entrypoint runs
+# USER root
+USER airflow
+COPY scripts/airflow-entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+RUN pip install --no-cache-dir "apache-airflow==3.0.6" apache-airflow-providers-mongo pymongo requests pydantic python-dotenv

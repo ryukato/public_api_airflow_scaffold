@@ -9,46 +9,57 @@ services:
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
-      POSTGRES_DB: test
+      POSTGRES_DB: airflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
   mongo:
     image: mongo:6
-    container_name: public-api-mongo
+    container_name: mongodb
     ports: ["27017:27017"]
     volumes:
       - mongo_data:/data/db
 
   airflow-webserver:
-    image: apache/airflow:2.9.3
-    container_name: public-api-airflow-web
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: custom-airflow:3.0.6
+    container_name: airflow-webserver
     environment:
+      - PATH=/home/airflow/.local/bin:/opt/airflow:$PATH
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - _PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-mongo pymongo requests pydantic python-dotenv
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://test:test@postgres:5432/airflow
     env_file:
       - .env
-    ports: ["8080:8080"]
+    ports: ["28080:8080"]
     volumes:
       - ./dags:/opt/airflow/dags
       - ./collector:/opt/airflow/collector
-    command: webserver
-    depends_on: [mongo]
+    entrypoint: ["/entrypoint.sh"]  # <== custom entrypoint 지정
+    command: "airflow api-server"
+    depends_on: [mongo, postgres]
 
   airflow-scheduler:
-    image: apache/airflow:2.9.3
-    container_name: public-api-airflow-sch
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: custom-airflow:3.0.6
+    container_name: airflow-scheduler
     environment:
+      - PATH=/home/airflow/.local/bin:/opt/airflow:$PATH
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - _PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-mongo pymongo requests pydantic python-dotenv
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://test:test@postgres:5432/airflow
     env_file:
       - .env
     volumes:
       - ./dags:/opt/airflow/dags
       - ./collector:/opt/airflow/collector
-    command: scheduler
-    depends_on: [airflow-webserver]
+    entrypoint: ["/entrypoint.sh"]  # <== custom entrypoint 지정
+    command: "airflow scheduler"
+    depends_on: [airflow-webserver, mongo, postgres]
+  
 
 volumes:
   postgres_data:
