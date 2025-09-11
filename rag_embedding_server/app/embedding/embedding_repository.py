@@ -105,4 +105,4 @@ class EmbeddingRepository:
 
     # noinspection PyMethodMayBeStatic
     def _to_chunk_from_payload(self, payload: Dict[str, Any]) -> TestRagChunk:
-        return PayloadResolver.resolve_to_drug_rag_chunk(payload)
+        return PayloadResolver.resolve_to_test_rag_chunk(payload)
